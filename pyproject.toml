@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "customer-journey-intelligence-platform"
+version = "0.1.0"
+description = "Realtime Customer Journey Intelligence Platform scaffold with PySpark, Redpanda, and ClickHouse."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7,<3",
+    "pydantic-settings>=2.3,<3",
+    "pyspark>=3.5,<4",
+    "confluent-kafka>=2.4,<3",
+    "clickhouse-connect>=0.7,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8,<9",
+    "ruff>=0.5,<1",
+]
+
+[project.scripts]
+generate-customer-events = "customer_journey_intel.event_generator.cli:main"
+customer-journey-stream = "customer_journey_intel.streaming.job:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/customer_journey_intel"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
