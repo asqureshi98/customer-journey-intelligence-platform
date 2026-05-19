@@ -14,6 +14,8 @@ dependencies = [
     "pyspark>=3.5,<4",
     "confluent-kafka>=2.4,<3",
     "clickhouse-connect>=0.7,<1",
+    "fastapi>=0.115,<1",
+    "uvicorn[standard]>=0.32,<1",
 ]
 
 [project.optional-dependencies]
@@ -24,6 +26,8 @@ dev = [
 
 [project.scripts]
 generate-customer-events = "customer_journey_intel.event_generator.cli:main"
+publish-customer-events = "customer_journey_intel.event_generator.producer:main"
+load-clickhouse-events = "customer_journey_intel.storage.clickhouse:main"
 customer-journey-stream = "customer_journey_intel.streaming.job:main"
 
 [tool.hatch.build.targets.wheel]

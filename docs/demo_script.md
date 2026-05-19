@@ -142,8 +142,9 @@ In a new terminal:
 make stream-local
 ```
 
-The job starts a local Spark session, reads from the `customer-events` topic, parses
-JSON, and prints the projected event fields to the console in micro-batch format:
+The target sets `SPARK_SUBMIT_ARGS` for the Kafka connector and starts a local Spark
+session. The job reads from the `customer-events` topic, parses JSON, and prints the
+projected event fields to the console in micro-batch format:
 
 ```
 -------------------------------------------
@@ -160,33 +161,13 @@ Batch: 0
 
 To stop the job: `Ctrl+C`
 
-## Step 8 — Query ClickHouse (Sprint 1 target)
+## Step 8 — Load sample data into ClickHouse and query analytics
 
-The Sprint 0 streaming sink writes to console. In Sprint 1, the sink writes to
-ClickHouse. For now, you can manually insert the sample events and run analytic queries
-to validate the schema.
-
-Connect to ClickHouse:
+Sprint 1 includes a lightweight direct JSONL loader for local demos. It creates the
+`raw_events` table and inserts the generated sample events:
 
 ```bash
-docker exec -it journey_clickhouse clickhouse-client \
-    --user default \
-    --database customer_journey
-```
-
-Create the `raw_events` table (paste the DDL from `infrastructure/clickhouse/README.md`),
-then insert from a file:
-
-```sql
--- In the ClickHouse CLI after table creation:
-INSERT INTO raw_events
-    SELECT
-        event_id, event_name, occurred_at, received_at,
-        customer_id, anonymous_id, session_id,
-        journey_stage, channel, experiment_id, variant_id,
-        toString(properties) AS properties,
-        toDate(occurred_at) AS ingest_date
-    FROM file('/tmp/sample_events.jsonl', 'JSONEachRow');
+make load-clickhouse-sample
 ```
 
 Run a funnel query:
@@ -202,7 +183,28 @@ GROUP BY journey_stage, event_name
 ORDER BY sessions DESC;
 ```
 
-## Step 9 — Stop services
+## Step 9 — Start the analytics API
+
+```bash
+make api-local
+```
+
+Open the generated OpenAPI docs at:
+
+```text
+http://127.0.0.1:8000/docs
+```
+
+Useful endpoints:
+
+```text
+GET /funnel
+GET /sessions
+GET /revenue-leakage
+GET /experiments
+```
+
+## Step 10 — Stop services
 
 ```bash
 make docker-down

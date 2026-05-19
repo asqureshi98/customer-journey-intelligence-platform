@@ -116,9 +116,10 @@ The Spark job is the core analytical engine performing five processing stages:
    events. Sessions without a matching `payment_succeeded` within 5 minutes generate a
    leakage record in `revenue_events`.
 
-**Sprint 0 scope:** The streaming sink is intentionally lightweight console output. This
-keeps unit tests fast and avoids requiring Docker for CI. The next sprint adds ClickHouse
-table DDL and a `foreachBatch` writer.
+**Current scope:** The streaming job reads from Redpanda and writes parsed events to
+console output for easy local verification. A separate ClickHouse JSONL loader creates
+`raw_events` and inserts generated samples so the analytics API can be demonstrated
+without requiring a long-running Spark sink during portfolio reviews.
 
 ### 4. ClickHouse (Real-time Analytics Warehouse)
 
@@ -211,9 +212,9 @@ payment method, and device type.
 | Sprint | Milestone                                                              |
 |--------|------------------------------------------------------------------------|
 | 0      | Repo scaffold, Pydantic contracts, simulator, CI pipeline (done)       |
-| 1      | ClickHouse DDL, foreachBatch sink, Redpanda producer CLI               |
-| 2      | Stateful session processor, funnel collapse detection                  |
-| 3      | Revenue leakage detector, A/B experiment metrics                       |
-| 4      | DLQ quarantine pipeline, late-event watermark hardening                |
-| 5      | MinIO Parquet lake, dbt-clickhouse models, Superset dashboards         |
-| 6      | Prometheus/Grafana observability, Airflow orchestration                |
+| 1      | Redpanda producer CLI, stream-local command, ClickHouse loader, API (done) |
+| 2      | Spark foreachBatch ClickHouse sink and richer windowed metrics         |
+| 3      | Stateful session processor, funnel collapse detection                  |
+| 4      | Revenue leakage detector, A/B experiment metrics                       |
+| 5      | DLQ quarantine pipeline, late-event watermark hardening                |
+| 6      | MinIO Parquet lake, dbt-clickhouse models, Superset dashboards         |

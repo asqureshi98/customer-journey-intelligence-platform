@@ -39,6 +39,36 @@ make docker-up
 
 `make generate-sample` writes JSON Lines events to `data/sample_events.jsonl`. `make docker-up` starts Redpanda and ClickHouse for local integration work.
 
+## Local demo commands
+
+```bash
+# Start local infrastructure
+make docker-up
+
+# Create the Redpanda topic once
+docker compose exec redpanda rpk topic create customer-events --partitions 4 --replicas 1
+
+# Publish generated events to Redpanda
+make publish-sample
+
+# Run the PySpark Kafka reader with the Spark Kafka connector
+make stream-local
+
+# Load the sample JSONL directly into ClickHouse for API/dashboard exploration
+make load-clickhouse-sample
+
+# Serve portfolio analytics endpoints on http://127.0.0.1:8000
+make api-local
+```
+
+API endpoints:
+
+- `GET /health`
+- `GET /funnel`
+- `GET /sessions`
+- `GET /revenue-leakage`
+- `GET /experiments`
+
 ## Local services
 
 - Redpanda broker: `localhost:19092`
