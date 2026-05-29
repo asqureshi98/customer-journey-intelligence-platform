@@ -22,25 +22,25 @@ aggregations without shuffle overhead.
 make docker-up
 
 # Or directly
-docker compose -f infrastructure/docker-compose.yml up -d redpanda redpanda-console
+docker compose up -d redpanda redpanda-console
 ```
 
 ## Checking broker health
 
 ```bash
-docker exec journey_redpanda rpk cluster health
+docker compose exec redpanda rpk cluster health
 ```
 
 ## Creating topics manually
 
-The streaming job creates topics automatically on first use. To pre-create them:
+Create topics before publishing or running the streaming job:
 
 ```bash
-docker exec journey_redpanda rpk topic create customer-events \
+docker compose exec redpanda rpk topic create customer-events \
   --partitions 4 \
   --replicas 1
 
-docker exec journey_redpanda rpk topic create customer-events-dlq \
+docker compose exec redpanda rpk topic create customer-events-dlq \
   --partitions 1 \
   --replicas 1
 ```
@@ -50,7 +50,7 @@ docker exec journey_redpanda rpk topic create customer-events-dlq \
 After running `make generate-sample`, seed Redpanda with the generated events:
 
 ```bash
-docker exec -i journey_redpanda rpk topic produce customer-events \
+docker compose exec -T redpanda rpk topic produce customer-events \
   < data/sample_events.jsonl
 ```
 

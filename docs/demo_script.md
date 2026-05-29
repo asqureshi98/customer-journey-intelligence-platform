@@ -1,7 +1,6 @@
 # Demo Script — Realtime Customer Journey Intelligence Platform
 
-This walkthrough demonstrates Sprint 0 end-to-end: generating synthetic journey data,
-publishing it to Redpanda, running the PySpark streaming job, and querying ClickHouse.
+This walkthrough demonstrates the current local portfolio flow: generating synthetic journey data, creating Redpanda topics, running the PySpark Kafka reader or checkpointed Spark -> ClickHouse raw sink, loading raw JSONL events into ClickHouse for deterministic demos, querying the FastAPI analytics service, and optionally opening the Streamlit dashboard.
 
 Estimated time: 15 minutes on a laptop with Docker installed.
 
@@ -18,7 +17,7 @@ git clone https://github.com/your-org/customer-journey-intelligence-platform.git
 cd customer-journey-intelligence-platform
 
 make setup
-# Installs pydantic, pyspark, confluent-kafka, faker, structlog, and dev tools
+# Installs pydantic, pyspark, confluent-kafka, clickhouse-connect, FastAPI, uvicorn, and dev tools
 ```
 
 Verify:
@@ -34,15 +33,15 @@ python -c "import customer_journey_intel; print(customer_journey_intel.__version
 make test
 ```
 
-Expected output:
+Expected output resembles:
 
 ```
-collected 7 items
-tests/test_event_contracts.py ...
-tests/test_event_generator.py ..
-tests/test_streaming_job.py ..
-7 passed in 0.11s
+collected <n> items
+...
+<n> passed in ...
 ```
+
+The exact count changes as the portfolio adds coverage for streaming sinks, data quality, dashboard behavior, and operational hardening.
 
 ## Step 3 — Generate a sample dataset
 
@@ -84,14 +83,14 @@ This starts three services:
 Wait for all three services to become healthy (about 20–30 seconds):
 
 ```bash
-docker compose -f infrastructure/docker-compose.yml ps
+docker compose ps
 # All services should show "healthy" or "running"
 ```
 
 Verify Redpanda:
 
 ```bash
-docker exec journey_redpanda rpk cluster health
+docker compose exec redpanda rpk cluster health
 # Healthy: true
 ```
 
@@ -105,13 +104,7 @@ curl http://localhost:8123/ping
 ## Step 5 — Create Redpanda topics
 
 ```bash
-docker exec journey_redpanda rpk topic create customer-events \
-    --partitions 4 \
-    --replicas 1
-
-docker exec journey_redpanda rpk topic create customer-events-dlq \
-    --partitions 1 \
-    --replicas 1
+make create-topics
 ```
 
 Browse topics at http://localhost:8080 — you should see both topics listed.
@@ -121,14 +114,13 @@ Browse topics at http://localhost:8080 — you should see both topics listed.
 Stream the generated JSONL file into the `customer-events` topic:
 
 ```bash
-docker exec -i journey_redpanda rpk topic produce customer-events \
-    < data/sample_events.jsonl
+make publish-sample
 ```
 
 Verify messages arrived:
 
 ```bash
-docker exec journey_redpanda rpk topic describe customer-events
+docker compose exec redpanda rpk topic describe customer-events
 ```
 
 Or browse to http://localhost:8080/topics/customer-events to see messages in the
@@ -142,9 +134,7 @@ In a new terminal:
 make stream-local
 ```
 
-The target sets `SPARK_SUBMIT_ARGS` for the Kafka connector and starts a local Spark
-session. The job reads from the `customer-events` topic, parses JSON, and prints the
-projected event fields to the console in micro-batch format:
+The target sets `SPARK_SUBMIT_ARGS` for the Kafka connector and starts a local Spark session. The default console sink reads from the `customer-events` topic, parses JSON, separates invalid rows, applies a 10-minute watermark plus `event_id` dedupe, and prints projected valid fields in micro-batches:
 
 ```
 -------------------------------------------
@@ -159,11 +149,19 @@ Batch: 0
 ...
 ```
 
-To stop the job: `Ctrl+C`
+To exercise the live ClickHouse raw sink instead, run this in a terminal after `make docker-up` and `make create-topics`:
+
+```bash
+make stream-clickhouse
+```
+
+Then run `make publish-sample` from another terminal. The ClickHouse sink uses Spark checkpointing at `/tmp/cji-checkpoint` and writes valid rows into `customer_journey.raw_events`. Invalid rows are printed for visibility; live publishing to `customer-events-dlq` is the remaining DLQ integration step.
+
+To stop either streaming job: `Ctrl+C`
 
 ## Step 8 — Load sample data into ClickHouse and query analytics
 
-Sprint 1 includes a lightweight direct JSONL loader for local demos. It creates the
+The current scaffold includes a lightweight direct JSONL loader for local demos. It creates the
 `raw_events` table and inserts the generated sample events:
 
 ```bash

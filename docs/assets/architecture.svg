@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="420" viewBox="0 0 980 420" role="img" aria-labelledby="title desc">
+  <title id="title">Realtime customer journey intelligence architecture</title>
+  <desc id="desc">Local portfolio architecture showing generator, Redpanda, Spark, ClickHouse, API, and dashboard.</desc>
+  <style>
+    .bg { fill: #0f172a; }
+    .box { fill: #111827; stroke: #38bdf8; stroke-width: 2; rx: 14; }
+    .partial { stroke: #f59e0b; }
+    .planned { stroke: #94a3b8; stroke-dasharray: 8 6; }
+    .text { fill: #e5e7eb; font: 15px sans-serif; }
+    .small { fill: #cbd5e1; font: 12px sans-serif; }
+    .arrow { stroke: #67e8f9; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
+  </style>
+  <defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 Z" fill="#67e8f9"/></marker></defs>
+  <rect class="bg" width="980" height="420" rx="18"/>
+  <text class="text" x="34" y="36">Customer Journey Intelligence Platform — local portfolio architecture</text>
+  <rect class="box" x="34" y="80" width="165" height="88"/>
+  <text class="text" x="54" y="112">Event generator</text><text class="small" x="54" y="136">Pydantic contracts</text><text class="small" x="54" y="154">JSONL / producer</text>
+  <rect class="box" x="244" y="80" width="155" height="88"/>
+  <text class="text" x="274" y="112">Redpanda</text><text class="small" x="264" y="136">customer-events</text><text class="small" x="264" y="154">DLQ topic created</text>
+  <rect class="box" x="444" y="80" width="180" height="108"/>
+  <text class="text" x="468" y="112">Spark Streaming</text><text class="small" x="464" y="136">parse + validate split</text><text class="small" x="464" y="154">watermark + dedupe</text><text class="small" x="464" y="172">checkpointed sink</text>
+  <rect class="box" x="674" y="80" width="170" height="108"/>
+  <text class="text" x="708" y="112">ClickHouse</text><text class="small" x="696" y="136">raw_events</text><text class="small" x="696" y="154">metric schemas</text><text class="small" x="696" y="172">local analytics</text>
+  <rect class="box" x="588" y="260" width="145" height="82"/>
+  <text class="text" x="626" y="292">FastAPI</text><text class="small" x="608" y="316">funnel/sessions</text><text class="small" x="608" y="334">revenue/experiments</text>
+  <rect class="box" x="790" y="260" width="155" height="82"/>
+  <text class="text" x="828" y="292">Streamlit</text><text class="small" x="812" y="316">optional dashboard</text><text class="small" x="812" y="334">fallback demo data</text>
+  <rect class="box partial" x="344" y="260" width="185" height="82"/>
+  <text class="text" x="374" y="292">Aggregate helpers</text><text class="small" x="364" y="316">implemented/tested</text><text class="small" x="364" y="334">continuous writers planned</text>
+  <path class="arrow" d="M199 124 H244"/><path class="arrow" d="M399 124 H444"/><path class="arrow" d="M624 134 H674"/><path class="arrow" d="M759 188 V260"/><path class="arrow" d="M733 301 H790"/><path class="arrow" d="M674 172 C610 210 514 232 474 260"/><path class="arrow" d="M529 301 H588"/>
+  <text class="small" x="34" y="390">Blue = implemented local path. Amber = helper/schema foundation implemented; continuous metric writers remain roadmap.</text>
+</svg>

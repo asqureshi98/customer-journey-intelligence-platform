@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="420" viewBox="0 0 980 420" role="img" aria-labelledby="title desc">
+  <title id="title">Analytical model</title>
+  <desc id="desc">Entity model showing raw events feeding funnel, session, revenue, and experiment analytics.</desc>
+  <style>
+    .bg { fill: #111827; }
+    .table { fill: #172554; stroke: #60a5fa; stroke-width: 2; rx: 10; }
+    .mart { fill: #1e293b; stroke: #34d399; stroke-width: 2; rx: 10; }
+    .text { fill: #f9fafb; font: 14px sans-serif; }
+    .small { fill: #d1d5db; font: 12px sans-serif; }
+    .arrow { stroke: #f0abfc; stroke-width: 2; fill: none; marker-end: url(#arrow); }
+  </style>
+  <defs><marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 Z" fill="#f0abfc"/></marker></defs>
+  <rect class="bg" width="980" height="420" rx="18"/>
+  <text class="text" x="34" y="36">Analytical model: raw truth to reviewer-facing marts</text>
+  <rect class="table" x="360" y="78" width="235" height="125"/>
+  <text class="text" x="440" y="108">raw_events</text><text class="small" x="386" y="134">grain: event_id</text><text class="small" x="386" y="154">identity, session, stage</text><text class="small" x="386" y="174">properties JSON + timestamps</text>
+  <rect class="mart" x="55" y="265" width="190" height="95"/><text class="text" x="94" y="295">funnel_metrics</text><text class="small" x="80" y="320">stage/event/window</text><text class="small" x="80" y="340">drop-off readouts</text>
+  <rect class="mart" x="285" y="265" width="190" height="95"/><text class="text" x="324" y="295">session_metrics</text><text class="small" x="310" y="320">session_id grain</text><text class="small" x="310" y="340">collapse + conversion</text>
+  <rect class="mart" x="515" y="265" width="190" height="95"/><text class="text" x="556" y="295">revenue_events</text><text class="small" x="540" y="320">payment/order events</text><text class="small" x="540" y="340">at-risk revenue</text>
+  <rect class="mart" x="745" y="265" width="190" height="95"/><text class="text" x="778" y="295">experiment_metrics</text><text class="small" x="770" y="320">experiment + variant</text><text class="small" x="770" y="340">assignment/exposure/conversion</text>
+  <path class="arrow" d="M410 203 C310 230 220 242 150 265"/><path class="arrow" d="M455 203 C420 230 396 244 380 265"/><path class="arrow" d="M520 203 C560 230 590 244 610 265"/><path class="arrow" d="M570 203 C665 230 770 242 840 265"/>
+  <text class="small" x="34" y="394">Metric table DDL and helper logic are present; continuous Spark writers from raw_events/streaming batches are the main roadmap gap.</text>
+</svg>

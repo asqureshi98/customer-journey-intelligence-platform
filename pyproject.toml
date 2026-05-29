@@ -23,12 +23,16 @@ dev = [
     "pytest>=8,<9",
     "ruff>=0.5,<1",
 ]
+dashboard = [
+    "streamlit>=1.40,<2",
+]
 
 [project.scripts]
 generate-customer-events = "customer_journey_intel.event_generator.cli:main"
 publish-customer-events = "customer_journey_intel.event_generator.producer:main"
 load-clickhouse-events = "customer_journey_intel.storage.clickhouse:main"
 customer-journey-stream = "customer_journey_intel.streaming.job:main"
+customer-journey-dashboard = "customer_journey_intel.dashboard.app:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/customer_journey_intel"]
@@ -37,6 +41,10 @@ packages = ["src/customer_journey_intel"]
 addopts = "-q"
 pythonpath = ["src"]
 testpaths = ["tests"]
+markers = [
+    "clickhouse: integration tests that require a running ClickHouse container",
+    "api_integration: FastAPI tests that exercise live ClickHouse-backed API paths",
+]
 
 [tool.ruff]
 line-length = 100

@@ -11,6 +11,7 @@ class FakeAnalyticsRepository:
                 "event_name": "add_to_cart",
                 "event_count": 4,
                 "sessions": 3,
+                "conversion_rate": 0.75,
             }
         ]
 
@@ -20,14 +21,33 @@ class FakeAnalyticsRepository:
                 "failure_reason": "issuer_declined",
                 "failed_payments": 2,
                 "at_risk_revenue": 178.0,
+                "affected_sessions": 2,
             }
         ]
 
     def sessions(self):
-        return [{"session_id": "sess_1", "event_count": 8, "max_stage": "retention"}]
+        return [
+            {
+                "session_id": "sess_1",
+                "event_count": 8,
+                "max_stage": "retention",
+                "converted": True,
+                "funnel_collapse": False,
+                "cart_value_at_abandon": None,
+            }
+        ]
 
     def experiments(self):
-        return [{"experiment_id": "exp_checkout", "variant_id": "B", "events": 10}]
+        return [
+            {
+                "experiment_id": "exp_checkout",
+                "variant_id": "B",
+                "assigned_sessions": 10,
+                "exposed_sessions": 8,
+                "converted_sessions": 3,
+                "conversion_rate": 0.3,
+            }
+        ]
 
 
 def test_api_exposes_customer_journey_analytics_endpoints():

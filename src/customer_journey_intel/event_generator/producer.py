@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
 
+from customer_journey_intel.common.logging import configure_logging
 from customer_journey_intel.common.settings import Settings
 
 ProducerFactory = Callable[[dict[str, str]], Any]
+logger = logging.getLogger(__name__)
 
 
 def _default_producer_factory(config: dict[str, str]) -> Any:
@@ -68,6 +71,7 @@ def publish_file(
 
 def main() -> None:
     settings = Settings()
+    configure_logging(settings.log_level)
     parser = argparse.ArgumentParser(description="Publish generated journey JSONL to Redpanda.")
     parser.add_argument("--input", type=Path, default=Path("data/sample_events.jsonl"))
     parser.add_argument("--topic", default=settings.kafka_topic)
@@ -79,7 +83,14 @@ def main() -> None:
         topic=args.topic,
         bootstrap_servers=args.bootstrap_servers,
     )
-    print(f"published {count} events to {args.topic} via {args.bootstrap_servers}")
+    logger.info(
+        "published customer journey events",
+        extra={
+            "cji_event_count": count,
+            "cji_topic": args.topic,
+            "cji_bootstrap_servers": args.bootstrap_servers,
+        },
+    )
 
 
 if __name__ == "__main__":

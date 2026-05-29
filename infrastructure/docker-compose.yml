@@ -1,3 +1,8 @@
+# Compatibility copy of ../docker-compose.yml.
+# Canonical local compose entrypoint: run `docker compose ...` from the project root
+# or use the Makefile's docker-up/docker-down targets. Keep this file synchronized
+# only for users who explicitly run commands from infrastructure/.
+
 services:
   redpanda:
     image: docker.redpanda.com/redpandadata/redpanda:v24.1.9
@@ -13,29 +18,49 @@ services:
       - --kafka-addr=PLAINTEXT://0.0.0.0:9092,OUTSIDE://0.0.0.0:19092
       - --advertise-kafka-addr=PLAINTEXT://redpanda:9092,OUTSIDE://localhost:19092
     ports:
-      - "19092:19092"
-      - "9644:9644"
+      - "127.0.0.1:19092:19092"
+      - "127.0.0.1:9644:9644"
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
   redpanda-console:
     image: docker.redpanda.com/redpandadata/console:v2.6.0
     environment:
       KAFKA_BROKERS: redpanda:9092
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     depends_on:
-      - redpanda
+      redpanda:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
 
   clickhouse:
     image: clickhouse/clickhouse-server:24.3
     environment:
       CLICKHOUSE_DB: customer_journey
-      CLICKHOUSE_USER: default
-      CLICKHOUSE_PASSWORD: ""
+      CLICKHOUSE_USER: cji
+      CLICKHOUSE_PASSWORD: cji_local_password
     ports:
-      - "8123:8123"
-      - "9000:9000"
+      - "127.0.0.1:8123:8123"
+      - "127.0.0.1:9000:9000"
     volumes:
       - clickhouse-data:/var/lib/clickhouse
+      - ./clickhouse/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --user cji --password cji_local_password --query 'SELECT 1' >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
 volumes:
   clickhouse-data:

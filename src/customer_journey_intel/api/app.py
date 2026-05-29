@@ -1,11 +1,25 @@
 from __future__ import annotations
 
+import logging
+
 from fastapi import FastAPI
 
 from customer_journey_intel.api.analytics import AnalyticsRepository, ClickHouseAnalyticsRepository
+from customer_journey_intel.api.models import (
+    ExperimentMetric,
+    FunnelMetric,
+    RevenueLeakageMetric,
+    SessionMetric,
+)
+from customer_journey_intel.common.logging import configure_logging
+from customer_journey_intel.common.settings import Settings
+
+logger = logging.getLogger(__name__)
 
 
 def create_app(repository: AnalyticsRepository | None = None) -> FastAPI:
+    settings = Settings()
+    configure_logging(settings.log_level)
     app = FastAPI(
         title="Realtime Customer Journey Intelligence API",
         version="0.1.0",
@@ -21,21 +35,22 @@ def create_app(repository: AnalyticsRepository | None = None) -> FastAPI:
 
     @app.get("/health")
     def health() -> dict[str, str]:
+        logger.info("health check served", extra={"cji_service": "api"})
         return {"status": "ok", "service": "customer-journey-intel"}
 
-    @app.get("/funnel")
+    @app.get("/funnel", response_model=list[FunnelMetric])
     def funnel() -> list[dict[str, object]]:
         return analytics().funnel()
 
-    @app.get("/revenue-leakage")
+    @app.get("/revenue-leakage", response_model=list[RevenueLeakageMetric])
     def revenue_leakage() -> list[dict[str, object]]:
         return analytics().revenue_leakage()
 
-    @app.get("/sessions")
+    @app.get("/sessions", response_model=list[SessionMetric])
     def sessions() -> list[dict[str, object]]:
         return analytics().sessions()
 
-    @app.get("/experiments")
+    @app.get("/experiments", response_model=list[ExperimentMetric])
     def experiments() -> list[dict[str, object]]:
         return analytics().experiments()
 

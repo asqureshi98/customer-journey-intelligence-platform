@@ -16,7 +16,7 @@ class AnalyticsRepository(Protocol):
 
 
 class ClickHouseAnalyticsRepository:
-    """Small query repository for portfolio-demo analytics endpoints."""
+    """Business-ready query repository for portfolio-demo analytics endpoints."""
 
     def __init__(self, client=None, settings: Settings | None = None) -> None:
         runtime_settings = settings or Settings()
@@ -28,6 +28,8 @@ class ClickHouseAnalyticsRepository:
                 host=runtime_settings.clickhouse_host,
                 port=runtime_settings.clickhouse_port,
                 database=runtime_settings.clickhouse_database,
+                username=runtime_settings.clickhouse_user,
+                password=runtime_settings.clickhouse_password,
             )
         self.client = client
 
@@ -38,13 +40,21 @@ class ClickHouseAnalyticsRepository:
     def funnel(self) -> list[dict[str, object]]:
         return self._query(
             f"""
+            WITH totals AS (
+                SELECT sum(session_count) AS total_sessions
+                FROM {self.database}.funnel_metrics
+            )
             SELECT
                 journey_stage,
                 event_name,
-                count() AS event_count,
-                uniq(session_id) AS sessions
-            FROM {self.database}.raw_events
-            GROUP BY journey_stage, event_name
+                sum(event_count) AS event_count,
+                sum(session_count) AS sessions,
+                round(
+                    if(totals.total_sessions = 0, 0, sessions / totals.total_sessions), 4
+                ) AS conversion_rate
+            FROM {self.database}.funnel_metrics
+            CROSS JOIN totals
+            GROUP BY journey_stage, event_name, totals.total_sessions
             ORDER BY sessions DESC, event_count DESC
             LIMIT 50
             """
@@ -54,13 +64,14 @@ class ClickHouseAnalyticsRepository:
         return self._query(
             f"""
             SELECT
-                JSONExtractString(properties, 'failure_reason') AS failure_reason,
+                coalesce(nullIf(failure_reason, ''), 'unknown') AS failure_reason,
                 count() AS failed_payments,
-                sumOrNull(JSONExtractFloat(properties, 'cart_value')) AS at_risk_revenue
-            FROM {self.database}.raw_events
-            WHERE event_name = 'payment_failed'
+                ifNull(sumIf(cart_value, cart_value IS NOT NULL), 0) AS at_risk_revenue,
+                uniq(session_id) AS affected_sessions
+            FROM {self.database}.revenue_events
+            WHERE leakage = 1
             GROUP BY failure_reason
-            ORDER BY failed_payments DESC
+            ORDER BY at_risk_revenue DESC, failed_payments DESC
             LIMIT 20
             """
         )
@@ -70,13 +81,15 @@ class ClickHouseAnalyticsRepository:
             f"""
             SELECT
                 session_id,
-                count() AS event_count,
-                anyLast(journey_stage) AS max_stage,
-                min(occurred_at) AS first_seen,
-                max(occurred_at) AS last_seen
-            FROM {self.database}.raw_events
-            GROUP BY session_id
-            ORDER BY event_count DESC
+                event_count,
+                max_journey_stage AS max_stage,
+                first_seen,
+                last_seen,
+                converted,
+                funnel_collapse,
+                cart_value_at_abandon
+            FROM {self.database}.session_metrics
+            ORDER BY funnel_collapse DESC, event_count DESC, last_seen DESC
             LIMIT 50
             """
         )
@@ -87,12 +100,15 @@ class ClickHouseAnalyticsRepository:
             SELECT
                 experiment_id,
                 variant_id,
-                count() AS events,
-                uniq(session_id) AS sessions
-            FROM {self.database}.raw_events
-            WHERE experiment_id IS NOT NULL
+                sum(assigned_sessions) AS assigned_sessions,
+                sum(exposed_sessions) AS exposed_sessions,
+                sum(converted_sessions) AS converted_sessions,
+                round(
+                    if(assigned_sessions = 0, 0, converted_sessions / assigned_sessions), 4
+                ) AS conversion_rate
+            FROM {self.database}.experiment_metrics
             GROUP BY experiment_id, variant_id
-            ORDER BY events DESC
+            ORDER BY conversion_rate DESC, assigned_sessions DESC
             LIMIT 50
             """
         )

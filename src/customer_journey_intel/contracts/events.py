@@ -55,11 +55,12 @@ class EcommerceEvent(BaseModel):
     model_config = ConfigDict(use_enum_values=False)
 
     @model_validator(mode="after")
-    def require_customer_or_anonymous_identity(self) -> "EcommerceEvent":
-        if not self.customer_id and not self.anonymous_id:
-            raise ValueError(
-                "At least one customer identity is required: customer_id or anonymous_id"
-            )
+    def validate_business_rules(self) -> "EcommerceEvent":
+        from customer_journey_intel.contracts.data_quality import validate_event_payload
+
+        errors = validate_event_payload(self.model_dump())
+        if errors:
+            raise ValueError("; ".join(errors))
         return self
 
     def to_json_line(self) -> str:

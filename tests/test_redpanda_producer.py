@@ -28,8 +28,9 @@ def test_publish_json_lines_sends_events_to_configured_redpanda_topic():
         lines=lines,
         topic="customer-events",
         bootstrap_servers="localhost:19092",
-        producer_factory=lambda config: created_producers.append(FakeProducer(config))
-        or created_producers[-1],
+        producer_factory=lambda config: (
+            created_producers.append(FakeProducer(config)) or created_producers[-1]
+        ),
     )
 
     producer = created_producers[0]

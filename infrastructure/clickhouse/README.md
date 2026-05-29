@@ -1,8 +1,6 @@
 # ClickHouse — Local Setup Notes
 
-ClickHouse is the real-time analytics warehouse that stores enriched journey events,
-funnel metrics, session KPIs, and revenue leakage records produced by the PySpark
-streaming job.
+ClickHouse is the local analytics warehouse. Docker init SQL creates the `customer_journey` database plus `raw_events`, `funnel_metrics`, `session_metrics`, `revenue_events`, and `experiment_metrics`. Sprint 2 writes valid raw events through the Spark `foreachBatch` sink or the direct JSONL loader; aggregate metric writers are still planned.
 
 ## Starting ClickHouse
 
@@ -11,7 +9,7 @@ streaming job.
 make docker-up
 
 # Or directly
-docker compose -f infrastructure/docker-compose.yml up -d clickhouse
+docker compose up -d clickhouse
 ```
 
 ## Connection details
@@ -21,8 +19,8 @@ docker compose -f infrastructure/docker-compose.yml up -d clickhouse
 | HTTP API  | http://localhost:8123         |
 | Native TCP| localhost:9000                |
 | Database  | `customer_journey`            |
-| User      | `default`                     |
-| Password  | (empty in dev; see .env)      |
+| User      | `cji`                         |
+| Password  | `cji_local_password`          |
 
 ## Verifying the server is up
 
@@ -34,15 +32,24 @@ curl http://localhost:8123/ping
 ## Connecting with the ClickHouse client
 
 ```bash
-docker exec -it journey_clickhouse clickhouse-client \
-  --user default \
+docker compose exec clickhouse clickhouse-client \
+  --user cji \
+  --password cji_local_password \
   --database customer_journey
 ```
 
-## Sprint 0 DDL
+## DDL
 
-The tables below are the target schema for Sprint 1 integration. They can be created
-manually via the ClickHouse client or automated with a migration script in a later sprint.
+Authoritative schema files live in `infrastructure/clickhouse/init/` and are mounted into `/docker-entrypoint-initdb.d` by Docker Compose:
+
+- `01_database.sql` — creates `customer_journey`
+- `02_raw_events.sql` — raw event table using `ReplacingMergeTree(ingested_at)` ordered by `event_id` for idempotent replays
+- `03_funnel_metrics.sql` — windowed funnel metric target schema
+- `04_session_metrics.sql` — per-session metric target schema
+- `05_revenue_events.sql` — payment/revenue event target schema
+- `06_experiment_metrics.sql` — experiment metric target schema
+
+The Python helpers in `customer_journey_intel.storage.clickhouse` generate matching DDL for tests and local loader setup.
 
 ### raw_events
 
@@ -60,107 +67,38 @@ CREATE TABLE IF NOT EXISTS customer_journey.raw_events
     channel         LowCardinality(String),
     experiment_id   Nullable(String),
     variant_id      Nullable(String),
-    properties      String,    -- JSON blob
+    properties      String,
+    ingested_at     DateTime64(3, 'UTC') DEFAULT now64(3),
     ingest_date     Date DEFAULT toDate(occurred_at)
 )
-ENGINE = MergeTree()
+ENGINE = ReplacingMergeTree(ingested_at)
 PARTITION BY ingest_date
-ORDER BY (occurred_at, session_id, event_id)
+ORDER BY (event_id)
 TTL ingest_date + INTERVAL 90 DAY;
 ```
 
-### funnel_metrics
-
-```sql
-CREATE TABLE IF NOT EXISTS customer_journey.funnel_metrics
-(
-    window_start        DateTime64(3, 'UTC'),
-    window_end          DateTime64(3, 'UTC'),
-    journey_stage       LowCardinality(String),
-    event_name          LowCardinality(String),
-    channel             LowCardinality(String),
-    experiment_id       Nullable(String),
-    variant_id          Nullable(String),
-    event_count         UInt64,
-    unique_sessions     UInt64,
-    unique_customers    UInt64
-)
-ENGINE = AggregatingMergeTree()
-ORDER BY (window_start, journey_stage, event_name, channel)
-PARTITION BY toDate(window_start);
-```
-
-### session_metrics
-
-```sql
-CREATE TABLE IF NOT EXISTS customer_journey.session_metrics
-(
-    session_id              String,
-    customer_id             Nullable(String),
-    anonymous_id            Nullable(String),
-    channel                 LowCardinality(String),
-    session_start           DateTime64(3, 'UTC'),
-    session_end             DateTime64(3, 'UTC'),
-    session_duration_sec    UInt32,
-    event_count             UInt16,
-    max_funnel_stage        LowCardinality(String),
-    funnel_collapse         UInt8,
-    cart_value_at_abandon   Nullable(Float64),
-    experiment_id           Nullable(String),
-    variant_id              Nullable(String),
-    updated_at              DateTime64(3, 'UTC')
-)
-ENGINE = ReplacingMergeTree(updated_at)
-ORDER BY session_id
-PARTITION BY toDate(session_start);
-```
-
-### revenue_events
-
-```sql
-CREATE TABLE IF NOT EXISTS customer_journey.revenue_events
-(
-    event_id            String,
-    session_id          String,
-    customer_id         Nullable(String),
-    occurred_at         DateTime64(3, 'UTC'),
-    event_name          LowCardinality(String),
-    payment_method      Nullable(LowCardinality(String)),
-    cart_value          Nullable(Float64),
-    currency            LowCardinality(String) DEFAULT 'USD',
-    leakage             UInt8 DEFAULT 0,
-    resolution          LowCardinality(String) DEFAULT 'resolved',
-    failure_reason      Nullable(String),
-    experiment_id       Nullable(String),
-    variant_id          Nullable(String)
-)
-ENGINE = MergeTree()
-ORDER BY (occurred_at, session_id, event_id)
-PARTITION BY toDate(occurred_at);
-```
+The metric schemas are intentionally created now but not populated by the Sprint 2 Spark job yet. Populate them in a future streaming branch after the raw path is stable.
 
 ## Data retention
 
-The `raw_events` table uses a 90-day TTL. Aggregated tables (`funnel_metrics`,
-`session_metrics`, `revenue_events`) do not have a TTL set by default and are expected
-to grow slowly enough to be managed manually in a local dev environment.
+The `raw_events` table uses a 90-day TTL. Metric tables also use 90-day TTLs in the init SQL so local development volumes stay bounded.
 
 ## Useful queries
 
-### Funnel conversion by stage (last 60 minutes)
+### Planned funnel conversion by stage (last 60 minutes)
 
 ```sql
 SELECT
     journey_stage,
-    sumMerge(event_count) AS events,
-    uniqMerge(unique_sessions) AS sessions
+    sum(event_count) AS events,
+    sum(session_count) AS sessions
 FROM customer_journey.funnel_metrics
 WHERE window_start >= now() - INTERVAL 60 MINUTE
 GROUP BY journey_stage
 ORDER BY sessions DESC;
 ```
 
-### Revenue leakage in the last hour
+### Planned revenue leakage in the last hour
 
 ```sql
 SELECT

@@ -312,55 +312,57 @@ Client-side API error intercepted by the frontend SDK.
 
 ## ClickHouse Table Schemas
 
-Full DDL with comments is maintained in
-`infrastructure/clickhouse/README.md`. Below is a reference summary.
+Full DDL with comments is maintained in `infrastructure/clickhouse/init/` and summarized in `infrastructure/clickhouse/README.md`. `raw_events` is implemented by the Spark ClickHouse sink and JSONL loader. The metric tables are created and have pure Python derivation helpers in `streaming/aggregates.py`; wiring those helpers into a continuous Spark mart writer remains planned.
 
 ### raw_events
 
-Append-only full audit trail of every validated event. Partitioned by `ingest_date` for
-efficient time-range queries. 90-day TTL.
+Grain: one row per source event (`event_id`). Idempotent raw event table loaded by the Spark `foreachBatch` sink or direct JSONL loader. Partitioned by `ingest_date` for efficient time-range queries. 90-day TTL.
 
-Primary sort key: `(occurred_at, session_id, event_id)`
+Primary sort key: `event_id`; engine: `ReplacingMergeTree(ingested_at)` so replays for the same `event_id` collapse in ClickHouse merges.
 
 ### funnel_metrics
 
-Pre-aggregated per-minute window counts used by dashboards. Uses
-`AggregatingMergeTree` so partial aggregates from multiple Spark micro-batches can be
-merged without double-counting.
+Grain: one row per `(window_start, journey_stage, event_name, experiment_id, variant_id)`. Pre-aggregated window counts for dashboards and API funnel responses. The table uses `ReplacingMergeTree(computed_at)` for idempotent rewrites of the same grain.
 
-Primary sort key: `(window_start, journey_stage, event_name, channel)`
+Primary sort key: `(window_start, journey_stage, event_name, experiment_id, variant_id)`
 
 ### session_metrics
 
-One row per session, updated when the session times out or completes. Uses
-`ReplacingMergeTree(updated_at)` so late state updates replace earlier versions.
+Grain: one row per `session_id`, updated when a later batch has fresher session state. Uses `ReplacingMergeTree(updated_at)` so late state updates replace earlier versions.
 
 Primary sort key: `session_id`
 
 Key analytic columns:
-- `max_funnel_stage`: highest stage reached in this session
+- `max_journey_stage`: highest business journey stage reached in this session
+- `reached_checkout`, `reached_payment`, `converted`: conversion milestone flags
 - `funnel_collapse`: 1 if the session reached checkout but did not convert
 - `cart_value_at_abandon`: estimated revenue lost on collapse
 
 ### revenue_events
 
-Payment outcomes and revenue leakage records. One row per `payment_attempted` or
-`order_completed` event, enriched with leakage flag and experiment metadata.
+Grain: one row per revenue-relevant event (`payment_attempted`, `payment_succeeded`, `payment_failed`, or `order_completed`). It extracts typed JSON properties such as `cart_value`, `product_id`, `payment_method`, `failure_reason`, `order_id`, plus `leakage` and `resolution` for revenue leakage reporting.
 
 Primary sort key: `(occurred_at, session_id, event_id)`
 
+### experiment_metrics
+
+Grain: one row per `(window_start, experiment_id, variant_id)`. Tracks assignment, exposure, and converted session counts for experiment readouts.
+
+Primary sort key: `(window_start, experiment_id, variant_id)`
+
 ### DLQ envelope schema
 
-Published to the `customer-events-dlq` Redpanda topic as JSON:
+Implemented testable JSON envelope for records that will be published to the `customer-events-dlq` Redpanda topic in a later live sink step:
 
 | Field              | Type   | Description                                    |
 |--------------------|--------|------------------------------------------------|
-| `original_payload` | string | Raw bytes of the rejected message              |
-| `error_type`       | string | Validation error category                      |
-| `error_detail`     | string | Pydantic error message                         |
+| `envelope_id`      | string | UUID for the DLQ wrapper                       |
+| `event_id`         | string | Original event id or generated fallback UUID   |
+| `raw_payload`      | string | Raw rejected message payload                   |
+| `error_type`       | string | `parse_error`, `validation_error`, `schema_error`, or `unknown` |
+| `error_message`    | string | Human-readable error detail                    |
 | `received_at`      | string | ISO-8601 UTC timestamp of ingestion            |
-| `kafka_partition`  | int    | Source partition for replay targeting          |
-| `kafka_offset`     | int    | Source offset for replay targeting             |
+| `dlq_enqueued_at`  | string | ISO-8601 UTC timestamp envelope was created    |
 
 ## Schema Version
 
